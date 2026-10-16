@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Caffeine - Keep Awake Utility</title>
     <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.10"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -15,6 +15,7 @@
                         caffeine: {
                             50: '#fef2f2',
                             100: '#fee2e2',
+                            400: '#f87171',
                             500: '#ef4444',
                             600: '#dc2626',
                             700: '#b91c1c',
@@ -26,9 +27,9 @@
         }
     </script>
     <!-- Alpine.js for reactive UI state -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
     <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@0.441.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-caffeine-500 selection:text-white" x-data="caffeineApp()">
 
@@ -68,12 +69,12 @@
                      :class="isActive ? 'border-caffeine-500 shadow-caffeine-500/30 bg-caffeine-500/5' : 'border-slate-800 bg-slate-950/40'">
 
                     <div class="flex flex-col items-center">
-                        <i data-lucide="coffee" class="w-8 h-8 mb-1 transition-colors duration-300" :class="isActive ? 'text-caffeine-500 animate-bounce' : 'text-slate-600'"></i>
+                        <span class="mb-1 transition-colors duration-300" :class="isActive ? 'text-caffeine-500 animate-bounce' : 'text-slate-600'"><i data-lucide="coffee" class="w-8 h-8"></i></span>
                         <span class="text-2xl font-mono font-bold tracking-tight" x-text="timeDisplay">00:00</span>
                     </div>
 
                     <!-- Outer spinning active ring -->
-                    <div class="absolute inset-0 rounded-full border-4 border-transparent border-t-caffeine-500 animate-spin" x-show="isActive && mode === 'timed'" style="animation-duration: 3s;"></div>
+                    <div class="absolute inset-0 rounded-full border-4 border-transparent border-t-caffeine-500 animate-spin" x-show="isActive && !isInfinite" style="animation-duration: 3s;"></div>
                 </div>
 
                 <p class="text-sm text-slate-400" x-text="statusDescription">Select a preset or click toggle to keep your device awake.</p>
@@ -92,7 +93,7 @@
                 <button @click="setInfinite()"
                         :disabled="isActive"
                         class="py-2.5 px-2 rounded-xl text-xs font-semibold transition-all border col-span-4 disabled:opacity-50 disabled:cursor-not-allowed"
-                        :class="isInfinite && isActive ? 'bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-500/25' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-300 border-slate-700/60'">
+                        :class="isInfinite ? 'bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-500/25' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-300 border-slate-700/60'">
                     ∞ Indefinite Mode (Until closed)
                 </button>
             </div>
@@ -101,7 +102,8 @@
             <button @click="toggleWakeLock()"
                     class="w-full py-4 rounded-2xl font-bold text-base transition-all transform active:scale-[0.98] shadow-lg flex items-center justify-center space-x-2 relative z-10"
                     :class="isActive ? 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700' : 'bg-gradient-to-r from-caffeine-600 to-amber-600 hover:from-caffeine-500 hover:to-amber-500 text-white shadow-caffeine-500/25'">
-                <i :data-lucide="isActive ? 'square' : 'play'" class="w-5 h-5 fill-current"></i>
+                <span x-show="isActive"><i data-lucide="square" class="w-5 h-5 fill-current"></i></span>
+                <span x-show="!isActive"><i data-lucide="play" class="w-5 h-5 fill-current"></i></span>
                 <span x-text="isActive ? 'Release Caffeine (Allow Sleep)' : 'Inject Caffeine (Keep Awake)'"></span>
             </button>
 
@@ -217,10 +219,11 @@
                         this.addLog(`Session started (${this.isInfinite ? 'Indefinite' : this.selectedMinutes + ' mins'})`);
 
                         if (!this.isInfinite) {
+                            // Count down against a fixed end time so background throttling can't stretch the timer
+                            const endsAt = Date.now() + this.timeLeft * 1000;
                             this.timerInterval = setInterval(() => {
-                                if (this.timeLeft > 0) {
-                                    this.timeLeft--;
-                                } else {
+                                this.timeLeft = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
+                                if (this.timeLeft === 0) {
                                     this.releaseWakeLock('Timer finished');
                                 }
                             }, 1000);
