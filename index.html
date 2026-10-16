@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caffeine - Keep Awake Utility</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        caffeine: {
+                            50: '#fef2f2',
+                            100: '#fee2e2',
+                            500: '#ef4444',
+                            600: '#dc2626',
+                            700: '#b91c1c',
+                            900: '#7f1d1d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Alpine.js for reactive UI state -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-caffeine-500 selection:text-white" x-data="caffeineApp()">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800/80 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-caffeine-600 to-amber-500 flex items-center justify-center shadow-lg shadow-caffeine-500/20">
+                    <i data-lucide="zap" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold tracking-tight text-lg">Caffeine <span class="text-xs uppercase px-2 py-0.5 rounded bg-caffeine-500/10 text-caffeine-400 border border-caffeine-500/20 ml-1">Web</span></h1>
+                    <p class="text-xs text-slate-400">Prevent screen sleep & dimming instantly</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" :class="isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'">
+                    <span class="w-1.5 h-1.5 rounded-full mr-1.5 animate-pulse" :class="isActive ? 'bg-emerald-400' : 'bg-slate-500'"></span>
+                    <span x-text="isActive ? 'Awake Active' : 'Idle'"></span>
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-6 py-10 w-full flex-grow flex flex-col items-center justify-center">
+
+        <!-- Main Interactive Control Panel -->
+        <div class="w-full max-w-md bg-slate-900/80 border border-slate-800/80 rounded-3xl p-8 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+
+            <!-- Ambient Glow Background Effect -->
+            <div class="absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl transition-all duration-700 pointer-events-none" :class="isActive ? 'bg-caffeine-500/20' : 'bg-blue-500/5'"></div>
+
+            <!-- Status Ring / Visualizer -->
+            <div class="flex flex-col items-center text-center mb-8 relative z-10">
+                <div class="relative w-36 h-36 flex items-center justify-center rounded-full border-4 transition-all duration-500 mb-4 shadow-inner"
+                     :class="isActive ? 'border-caffeine-500 shadow-caffeine-500/30 bg-caffeine-500/5' : 'border-slate-800 bg-slate-950/40'">
+
+                    <div class="flex flex-col items-center">
+                        <i data-lucide="coffee" class="w-8 h-8 mb-1 transition-colors duration-300" :class="isActive ? 'text-caffeine-500 animate-bounce' : 'text-slate-600'"></i>
+                        <span class="text-2xl font-mono font-bold tracking-tight" x-text="timeDisplay">00:00</span>
+                    </div>
+
+                    <!-- Outer spinning active ring -->
+                    <div class="absolute inset-0 rounded-full border-4 border-transparent border-t-caffeine-500 animate-spin" x-show="isActive && mode === 'timed'" style="animation-duration: 3s;"></div>
+                </div>
+
+                <p class="text-sm text-slate-400" x-text="statusDescription">Select a preset or click toggle to keep your device awake.</p>
+            </div>
+
+            <!-- Presets Grid -->
+            <div class="grid grid-cols-4 gap-2 mb-6 relative z-10">
+                <template x-for="p in presets">
+                    <button @click="setPreset(p.minutes)"
+                            :disabled="isActive"
+                            class="py-2.5 px-2 rounded-xl text-xs font-semibold transition-all border disabled:opacity-50 disabled:cursor-not-allowed"
+                            :class="selectedMinutes === p.minutes && !isInfinite ? 'bg-caffeine-500 text-white border-caffeine-400 shadow-lg shadow-caffeine-500/25' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-300 border-slate-700/60'">
+                        <span x-text="p.label"></span>
+                    </button>
+                </template>
+                <button @click="setInfinite()"
+                        :disabled="isActive"
+                        class="py-2.5 px-2 rounded-xl text-xs font-semibold transition-all border col-span-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                        :class="isInfinite && isActive ? 'bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-500/25' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-300 border-slate-700/60'">
+                    ∞ Indefinite Mode (Until closed)
+                </button>
+            </div>
+
+            <!-- Big Toggle Action Button -->
+            <button @click="toggleWakeLock()"
+                    class="w-full py-4 rounded-2xl font-bold text-base transition-all transform active:scale-[0.98] shadow-lg flex items-center justify-center space-x-2 relative z-10"
+                    :class="isActive ? 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700' : 'bg-gradient-to-r from-caffeine-600 to-amber-600 hover:from-caffeine-500 hover:to-amber-500 text-white shadow-caffeine-500/25'">
+                <i :data-lucide="isActive ? 'square' : 'play'" class="w-5 h-5 fill-current"></i>
+                <span x-text="isActive ? 'Release Caffeine (Allow Sleep)' : 'Inject Caffeine (Keep Awake)'"></span>
+            </button>
+
+            <!-- Browser Support Warning Note -->
+            <div class="mt-6 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-500 flex items-center justify-center space-x-1">
+                <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                <span>Powered by the native Screen Wake Lock API</span>
+            </div>
+        </div>
+
+        <!-- History & Logs Section -->
+        <div class="w-full max-w-md mt-8">
+            <div class="flex items-center justify-between mb-3 px-1">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Session Activity</h3>
+                <button @click="logs = []" class="text-xs text-slate-500 hover:text-slate-300 transition-colors" x-show="logs.length > 0">Clear logs</button>
+            </div>
+            <div class="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-4 max-h-40 overflow-y-auto space-y-2 text-xs">
+                <template x-for="log in logs">
+                    <div class="flex items-center justify-between py-1.5 px-3 rounded-lg bg-slate-900/80 border border-slate-800">
+                        <span class="text-slate-300" x-text="log.text"></span>
+                        <span class="text-slate-500 font-mono text-[10px]" x-text="log.time"></span>
+                    </div>
+                </template>
+                <div x-show="logs.length === 0" class="text-center py-4 text-slate-600">
+                    No active sessions logged yet.
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 bg-slate-900/30 py-6 text-center text-xs text-slate-500">
+        <p>Designed for uninterrupted workflows, downloads, and monitoring.</p>
+    </footer>
+
+    <!-- App Logic Script -->
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('caffeineApp', () => ({
+                wakeLock: null,
+                isActive: false,
+                isInfinite: true,
+                selectedMinutes: 30,
+                timeLeft: 1800, // in seconds
+                timerInterval: null,
+                logs: [],
+                presets: [
+                    { label: '15m', minutes: 15 },
+                    { label: '30m', minutes: 30 },
+                    { label: '1h', minutes: 60 },
+                    { label: '2h', minutes: 120 }
+                ],
+
+                init() {
+                    // Initialize lucide icons
+                    lucide.createIcons();
+
+                    // Handle visibility change: Screen wake lock is automatically released when tab is hidden
+                    document.addEventListener('visibilitychange', async () => {
+                        if (this.wakeLock !== null && document.visibilityState === 'visible' && this.isActive) {
+                            try {
+                                this.wakeLock = await navigator.wakeLock.request('screen');
+                            } catch (err) {
+                                console.error(`${err.name}, ${err.message}`);
+                            }
+                        }
+                    });
+                },
+
+                get timeDisplay() {
+                    if (this.isInfinite) return '∞';
+                    const mins = Math.floor(this.timeLeft / 60);
+                    const secs = this.timeLeft % 60;
+                    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+                },
+
+                get statusDescription() {
+                    if (!this.isActive) return 'Your system or screen may sleep based on OS power configs.';
+                    if (this.isInfinite) return 'Screen wake lock is active indefinitely until toggled off.';
+                    return `Active session running. Timer set for ${this.selectedMinutes} minutes.`;
+                },
+
+                setPreset(mins) {
+                    this.selectedMinutes = mins;
+                    this.timeLeft = mins * 60;
+                    this.isInfinite = false;
+                },
+
+                setInfinite() {
+                    this.isInfinite = true;
+                    this.selectedMinutes = 0;
+                },
+
+                async toggleWakeLock() {
+                    if (this.isActive) {
+                        this.releaseWakeLock('Manual stop');
+                    } else {
+                        await this.requestWakeLock();
+                    }
+                },
+
+                async requestWakeLock() {
+                    if (!('wakeLock' in navigator)) {
+                        alert('Wake Lock API is not supported by your browser. Please use a modern Chromium or Safari browser.');
+                        return;
+                    }
+
+                    try {
+                        this.wakeLock = await navigator.wakeLock.request('screen');
+                        this.isActive = true;
+
+                        this.addLog(`Session started (${this.isInfinite ? 'Indefinite' : this.selectedMinutes + ' mins'})`);
+
+                        if (!this.isInfinite) {
+                            this.timerInterval = setInterval(() => {
+                                if (this.timeLeft > 0) {
+                                    this.timeLeft--;
+                                } else {
+                                    this.releaseWakeLock('Timer finished');
+                                }
+                            }, 1000);
+                        }
+                    } catch (err) {
+                        this.isActive = false;
+                        alert(`Failed to acquire wake lock: ${err.message}`);
+                    }
+                },
+
+                releaseWakeLock(reason) {
+                    if (this.wakeLock !== null) {
+                        this.wakeLock.release().catch(() => {});
+                        this.wakeLock = null;
+                    }
+
+                    if (this.timerInterval) {
+                        clearInterval(this.timerInterval);
+                        this.timerInterval = null;
+                    }
+
+                    this.isActive = false;
+                    this.addLog(`Session ended: ${reason}`);
+
+                    // Reset timer back to preset
+                    if (!this.isInfinite) {
+                        this.timeLeft = this.selectedMinutes * 60;
+                    }
+                },
+
+                addLog(text) {
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    this.logs.unshift({ text, time: timeStr });
+                    if (this.logs.length > 5) this.logs.pop();
+                }
+            }));
+        });
+    </script>
+</body>
+</html>
